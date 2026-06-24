@@ -11,10 +11,15 @@ class AuthProvider with ChangeNotifier {
   String _phoneNumber = '';
   String _receivedOtp = '';
 
+  bool _isVerifying = false;
+  bool _hasOtpError = false;
+
   AuthStatus get status => _status;
   String? get errorMessage => _errorMessage;
   String get phoneNumber => _phoneNumber;
   String get receivedOtp => _receivedOtp;
+  bool get isVerifying => _isVerifying;
+  bool get hasOtpError => _hasOtpError;
 
   static const String _baseUrl =
       'https://welcoming-mindfulness-production-539a.up.railway.app';
@@ -77,35 +82,53 @@ class AuthProvider with ChangeNotifier {
 
   // ── Verify OTP ──────────────────────────────────────────────────────────────
   Future<bool> verifyOtp(String otp) async {
+    _isVerifying = true;
+    _hasOtpError = false;
+    notifyListeners();
+
+    bool success = false;
+
     // If we have a local OTP, verify it locally
     if (_localOtp != null) {
       await Future.delayed(const Duration(milliseconds: 800));
-      return otp == _localOtp;
+      success = otp == _localOtp;
+    } else {
+      // Otherwise verify against the API
+      final url = '$_baseUrl/api/otp/verify';
+      final body = jsonEncode({'phone': _phoneNumber, 'otp': otp});
+      debugPrint('[OTP] POST $url');
+      debugPrint('[OTP] Request body: $body');
+      try {
+        final response = await http
+            .post(
+              Uri.parse(url),
+              headers: {'Content-Type': 'application/json'},
+              body: body,
+            )
+            .timeout(const Duration(seconds: 8));
+
+        debugPrint('[OTP] Response status: ${response.statusCode}');
+        debugPrint('[OTP] Response body: ${response.body}');
+
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        success = response.statusCode == 200 && data['success'] == true;
+      } catch (e) {
+        debugPrint('[OTP] Verify error: $e');
+        success = false;
+      }
     }
 
-    // Otherwise verify against the API
-    final url = '$_baseUrl/api/otp/verify';
-    final body = jsonEncode({'phone': _phoneNumber, 'otp': otp});
-    debugPrint('[OTP] POST $url');
-    debugPrint('[OTP] Request body: $body');
-    try {
-      final response = await http
-          .post(
-            Uri.parse(url),
-            headers: {'Content-Type': 'application/json'},
-            body: body,
-          )
-          .timeout(const Duration(seconds: 8));
-
-      debugPrint('[OTP] Response status: ${response.statusCode}');
-      debugPrint('[OTP] Response body: ${response.body}');
-
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      return response.statusCode == 200 && data['success'] == true;
-    } catch (e) {
-      debugPrint('[OTP] Verify error: $e');
-      return false;
+    _isVerifying = false;
+    if (!success) {
+      _hasOtpError = true;
     }
+    notifyListeners();
+    return success;
+  }
+
+  void clearOtpError() {
+    _hasOtpError = false;
+    notifyListeners();
   }
 
   void reset() {
@@ -114,6 +137,8 @@ class AuthProvider with ChangeNotifier {
     _phoneNumber = '';
     _receivedOtp = '';
     _localOtp = null;
+    _isVerifying = false;
+    _hasOtpError = false;
     notifyListeners();
   }
 }

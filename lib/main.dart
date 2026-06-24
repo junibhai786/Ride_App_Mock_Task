@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ride_app_mock/providers/auth_provider.dart';
 import 'package:ride_app_mock/providers/ride_provider.dart';
+import 'package:ride_app_mock/providers/ride_request_provider.dart';
 import 'package:ride_app_mock/screens/splash_screen.dart';
 
 void main() {
@@ -10,6 +11,7 @@ void main() {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => RideProvider()),
+        ChangeNotifierProvider(create: (_) => RideRequestProvider()),
       ],
       child: const MyApp(),
     ),

@@ -1,190 +1,52 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
+import 'package:ride_app_mock/providers/ride_provider.dart';
 
-const _apiKey = 'AIzaSyBiA_0nQ8UDLzi6uJ444825ZOoCi_-SHBc';
-
-class RideResultScreen extends StatefulWidget {
-  final LatLng pickupLatLng;
-  final LatLng dropLatLng;
-  final String pickupText;
-  final String dropText;
-
-  const RideResultScreen({
-    super.key,
-    required this.pickupLatLng,
-    required this.dropLatLng,
-    required this.pickupText,
-    required this.dropText,
-  });
-
-  @override
-  State<RideResultScreen> createState() => _RideResultScreenState();
-}
-
-class _RideResultScreenState extends State<RideResultScreen> {
-  GoogleMapController? _mapController;
-  Set<Polyline> _polylines = {};
-  bool _loadingRoute = true;
-
-  late final Set<Marker> _markers = {
-    Marker(
-      markerId: const MarkerId('pickup'),
-      position: widget.pickupLatLng,
-      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-      infoWindow: InfoWindow(title: 'Pickup', snippet: widget.pickupText),
-    ),
-    Marker(
-      markerId: const MarkerId('drop'),
-      position: widget.dropLatLng,
-      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-      infoWindow: InfoWindow(title: 'Drop', snippet: widget.dropText),
-    ),
-  };
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchRoute();
-  }
-
-  @override
-  void dispose() {
-    _mapController?.dispose();
-    super.dispose();
-  }
-
-  List<LatLng> _decodePolyline(String encoded) {
-    final List<LatLng> points = [];
-    int index = 0;
-    final int len = encoded.length;
-    int lat = 0, lng = 0;
-    while (index < len) {
-      int b, shift = 0, result = 0;
-      do {
-        b = encoded.codeUnitAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      final int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
-      lat += dlat;
-      shift = 0;
-      result = 0;
-      do {
-        b = encoded.codeUnitAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      final int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
-      lng += dlng;
-      points.add(LatLng(lat / 1e5, lng / 1e5));
-    }
-    return points;
-  }
-
-  Future<void> _fetchRoute() async {
-    final origin =
-        '${widget.pickupLatLng.latitude},${widget.pickupLatLng.longitude}';
-    final destination =
-        '${widget.dropLatLng.latitude},${widget.dropLatLng.longitude}';
-    final uri = Uri.parse(
-      'https://maps.googleapis.com/maps/api/directions/json'
-      '?origin=$origin&destination=$destination&key=$_apiKey',
-    );
-
-    debugPrint('[Route] GET $uri');
-    try {
-      final response = await http.get(uri);
-      debugPrint('[Route] Status: ${response.statusCode}');
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['status'] == 'OK') {
-          final encoded =
-              data['routes'][0]['overview_polyline']['points'] as String;
-          final points = _decodePolyline(encoded);
-          if (mounted) {
-            setState(() {
-              _polylines = {
-                Polyline(
-                  polylineId: const PolylineId('route'),
-                  points: points,
-                  color: const Color(0xFF5C2D91),
-                  width: 5,
-                ),
-              };
-              _loadingRoute = false;
-            });
-            _fitBounds();
-          }
-          return;
-        }
-        debugPrint('[Route] Directions API status: ${data['status']}');
-      }
-    } catch (e) {
-      debugPrint('[Route] Error: $e');
-    }
-    // Fallback: straight line between the two points
-    if (mounted) {
-      setState(() {
-        _polylines = {
-          Polyline(
-            polylineId: const PolylineId('route'),
-            points: [widget.pickupLatLng, widget.dropLatLng],
-            color: const Color(0xFF5C2D91),
-            width: 5,
-            patterns: [PatternItem.dash(20), PatternItem.gap(10)],
-          ),
-        };
-        _loadingRoute = false;
-      });
-      _fitBounds();
-    }
-  }
-
-  void _fitBounds() {
-    if (_mapController == null) return;
-    final sw = LatLng(
-      widget.pickupLatLng.latitude < widget.dropLatLng.latitude
-          ? widget.pickupLatLng.latitude
-          : widget.dropLatLng.latitude,
-      widget.pickupLatLng.longitude < widget.dropLatLng.longitude
-          ? widget.pickupLatLng.longitude
-          : widget.dropLatLng.longitude,
-    );
-    final ne = LatLng(
-      widget.pickupLatLng.latitude > widget.dropLatLng.latitude
-          ? widget.pickupLatLng.latitude
-          : widget.dropLatLng.latitude,
-      widget.pickupLatLng.longitude > widget.dropLatLng.longitude
-          ? widget.pickupLatLng.longitude
-          : widget.dropLatLng.longitude,
-    );
-    _mapController!.animateCamera(
-      CameraUpdate.newLatLngBounds(LatLngBounds(southwest: sw, northeast: ne), 80),
-    );
-  }
-
-  void _onMapCreated(GoogleMapController controller) {
-    _mapController = controller;
-    if (!_loadingRoute) _fitBounds();
-  }
+class RideResultScreen extends StatelessWidget {
+  const RideResultScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final rideProvider = context.watch<RideProvider>();
+    final pickupLatLng = rideProvider.pickupLatLng;
+    final dropLatLng = rideProvider.dropLatLng;
+    final pickupText = rideProvider.pickupText;
+    final dropText = rideProvider.dropText;
+
+    if (pickupLatLng == null || dropLatLng == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator(color: Color(0xFF5C2D91))),
+      );
+    }
+
+    final markers = {
+      Marker(
+        markerId: const MarkerId('pickup'),
+        position: pickupLatLng,
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+        infoWindow: InfoWindow(title: 'Pickup', snippet: pickupText),
+      ),
+      Marker(
+        markerId: const MarkerId('drop'),
+        position: dropLatLng,
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+        infoWindow: InfoWindow(title: 'Drop', snippet: dropText),
+      ),
+    };
+
     return Scaffold(
       body: Stack(
         children: [
           // Full-screen map
           GoogleMap(
-            onMapCreated: _onMapCreated,
+            onMapCreated: context.read<RideProvider>().setMapController,
             initialCameraPosition: CameraPosition(
-              target: widget.pickupLatLng,
+              target: pickupLatLng,
               zoom: 13,
             ),
-            markers: _markers,
-            polylines: _polylines,
+            markers: markers,
+            polylines: rideProvider.polylines,
             myLocationButtonEnabled: false,
             zoomControlsEnabled: true,
           ),
@@ -214,7 +76,7 @@ class _RideResultScreenState extends State<RideResultScreen> {
           ),
 
           // Loading indicator over map while fetching route
-          if (_loadingRoute)
+          if (rideProvider.isLoadingRoute)
             const Center(
               child: CircularProgressIndicator(color: Color(0xFF5C2D91)),
             ),
@@ -228,7 +90,8 @@ class _RideResultScreenState extends State<RideResultScreen> {
               return Container(
                 decoration: const BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                  borderRadius:
+                      BorderRadius.vertical(top: Radius.circular(20)),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black26,
@@ -268,10 +131,12 @@ class _RideResultScreenState extends State<RideResultScreen> {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF5C2D91).withValues(alpha: 0.06),
+                        color:
+                            const Color(0xFF5C2D91).withValues(alpha: 0.06),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
-                          color: const Color(0xFF5C2D91).withValues(alpha: 0.2),
+                          color: const Color(0xFF5C2D91)
+                              .withValues(alpha: 0.2),
                         ),
                       ),
                       child: Row(
@@ -344,9 +209,12 @@ class _RideResultScreenState extends State<RideResultScreen> {
                       children: [
                         Column(
                           children: [
-                            const Icon(Icons.circle, color: Colors.green, size: 12),
+                            const Icon(Icons.circle,
+                                color: Colors.green, size: 12),
                             Container(
-                                width: 2, height: 28, color: Colors.grey[300]),
+                                width: 2,
+                                height: 28,
+                                color: Colors.grey[300]),
                             const Icon(Icons.location_on,
                                 color: Colors.red, size: 16),
                           ],
@@ -357,17 +225,19 @@ class _RideResultScreenState extends State<RideResultScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                widget.pickupText,
+                                pickupText,
                                 style: const TextStyle(
-                                    fontSize: 13, fontWeight: FontWeight.w500),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                widget.dropText,
+                                dropText,
                                 style: const TextStyle(
-                                    fontSize: 13, fontWeight: FontWeight.w500),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -386,7 +256,8 @@ class _RideResultScreenState extends State<RideResultScreen> {
                         onPressed: () {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Ride confirmed! Driver is on the way.'),
+                              content: Text(
+                                  'Ride confirmed! Driver is on the way.'),
                               backgroundColor: Color(0xFF5C2D91),
                               behavior: SnackBarBehavior.floating,
                             ),

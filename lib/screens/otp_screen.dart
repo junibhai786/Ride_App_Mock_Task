@@ -18,9 +18,6 @@ class _OtpScreenState extends State<OtpScreen> {
   final List<FocusNode> _focusNodes =
       List.generate(4, (_) => FocusNode());
 
-  bool _isVerifying = false;
-  bool _hasError = false;
-
   @override
   void dispose() {
     for (final c in _controllers) {
@@ -35,21 +32,28 @@ class _OtpScreenState extends State<OtpScreen> {
   String get _otp => _controllers.map((c) => c.text).join();
 
   Future<void> _verifyOtp() async {
+    final auth = context.read<AuthProvider>();
+
     if (_otp.length < 4) {
-      setState(() => _hasError = true);
+      // Show error via provider
+      // We can't set hasOtpError directly since it's managed in verifyOtp,
+      // but we can call verifyOtp with incomplete input and let provider handle it.
+      // For incomplete input show error inline by reading from a simpler approach:
+      // Since provider only sets error on verifyOtp failure, handle length check here
+      // by just showing the snackbar without provider state.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter all 4 digits.'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
       return;
     }
 
-    setState(() {
-      _isVerifying = true;
-      _hasError = false;
-    });
-
-    final auth = context.read<AuthProvider>();
     final success = await auth.verifyOtp(_otp);
 
     if (!mounted) return;
-    setState(() => _isVerifying = false);
 
     if (success) {
       Navigator.of(context).pushAndRemoveUntil(
@@ -57,7 +61,6 @@ class _OtpScreenState extends State<OtpScreen> {
         (_) => false,
       );
     } else {
-      setState(() => _hasError = true);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Incorrect OTP. Please try again.'),
@@ -82,12 +85,13 @@ class _OtpScreenState extends State<OtpScreen> {
   }
 
   void _onDigitChanged(String value, int index) {
+    final auth = context.read<AuthProvider>();
+    auth.clearOtpError();
     if (value.isNotEmpty && index < 3) {
       _focusNodes[index + 1].requestFocus();
     }
     // Auto-verify when all 4 digits are entered
     if (_otp.length == 4) _verifyOtp();
-    setState(() => _hasError = false);
   }
 
   void _onKeyEvent(KeyEvent event, int index) {
@@ -104,6 +108,8 @@ class _OtpScreenState extends State<OtpScreen> {
     final auth = context.watch<AuthProvider>();
     final phone = auth.phoneNumber;
     final receivedOtp = auth.receivedOtp;
+    final isVerifying = auth.isVerifying;
+    final hasOtpError = auth.hasOtpError;
 
     return Scaffold(
       body: Container(
@@ -239,14 +245,14 @@ class _OtpScreenState extends State<OtpScreen> {
                           return _OtpBox(
                             controller: _controllers[i],
                             focusNode: _focusNodes[i],
-                            hasError: _hasError,
+                            hasError: hasOtpError,
                             onChanged: (v) => _onDigitChanged(v, i),
                             onKeyEvent: (e) => _onKeyEvent(e, i),
                           );
                         }),
                       ),
 
-                      if (_hasError)
+                      if (hasOtpError)
                         Padding(
                           padding: const EdgeInsets.only(top: 12),
                           child: Text(
@@ -265,7 +271,7 @@ class _OtpScreenState extends State<OtpScreen> {
                         width: double.infinity,
                         height: 54,
                         child: ElevatedButton(
-                          onPressed: _isVerifying ? null : _verifyOtp,
+                          onPressed: isVerifying ? null : _verifyOtp,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF5C2D91),
                             foregroundColor: Colors.white,
@@ -276,7 +282,7 @@ class _OtpScreenState extends State<OtpScreen> {
                             ),
                             elevation: 0,
                           ),
-                          child: _isVerifying
+                          child: isVerifying
                               ? const SizedBox(
                                   width: 22,
                                   height: 22,
