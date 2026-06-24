@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter pub *)",
+      "Bash(mkdir -p /Users/aizaz/StudioProjects/ride_otp_api)",
+      "Read(//Users/aizaz/StudioProjects/**)",
+      "Bash(npm install *)"
+    ]
+  }
+}
