@@ -1,32 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
+import 'package:ride_app_mock/core/constants/app_colors.dart';
 import 'package:ride_app_mock/providers/bidding_provider.dart';
 import 'package:ride_app_mock/providers/ride_provider.dart';
 import 'package:ride_app_mock/screens/bidding_screen.dart';
 
-/// [RideResultScreen] displays the finalized route on a map and provides
-/// ride options (like Bike) with fare and ETA details.
+/// [RideResultScreen] shows the selected route on a full-screen map and
+/// presents a ride option (Bike) with fare and ETA before the passenger confirms.
 class RideResultScreen extends StatelessWidget {
   const RideResultScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Listen for ride/route data updates.
     final rideProvider = context.watch<RideProvider>();
     final pickupLatLng = rideProvider.pickupLatLng;
     final dropLatLng = rideProvider.dropLatLng;
     final pickupText = rideProvider.pickupText;
     final dropText = rideProvider.dropText;
 
-    // Show a loading indicator if the coordinates are not yet available.
+    // Show a loading indicator while coordinates are being resolved.
     if (pickupLatLng == null || dropLatLng == null) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator(color: Color(0xFF5C2D91))),
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
       );
     }
 
-    // Marker configuration for origin (green) and destination (red).
+    // Green pickup marker and red drop marker.
     final markers = {
       Marker(
         markerId: const MarkerId('pickup'),
@@ -45,7 +47,7 @@ class RideResultScreen extends StatelessWidget {
     return Scaffold(
       body: Stack(
         children: [
-          // Background: Full-screen interactive map with route polylines.
+          // Full-screen map with route polyline drawn by RideProvider.
           GoogleMap(
             onMapCreated: context.read<RideProvider>().setMapController,
             initialCameraPosition: CameraPosition(
@@ -58,7 +60,7 @@ class RideResultScreen extends StatelessWidget {
             zoomControlsEnabled: true,
           ),
 
-          // Floating Back button for easy navigation.
+          // Floating back button overlaid on the top-left of the map.
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -82,13 +84,13 @@ class RideResultScreen extends StatelessWidget {
             ),
           ),
 
-          // Modal overlay during route calculation.
+          // Loading spinner while the Directions API polyline is being fetched.
           if (rideProvider.isLoadingRoute)
             const Center(
-              child: CircularProgressIndicator(color: Color(0xFF5C2D91)),
+              child: CircularProgressIndicator(color: AppColors.primary),
             ),
 
-          // Bottom sheet containing ride options, pricing, and confirmation button.
+          // Draggable bottom sheet containing ride options and confirm button.
           DraggableScrollableSheet(
             initialChildSize: 0.35,
             minChildSize: 0.2,
@@ -111,7 +113,7 @@ class RideResultScreen extends StatelessWidget {
                   controller: scrollController,
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
                   children: [
-                    // Visual drag handle for the sheet.
+                    // Drag handle visual indicator.
                     Center(
                       child: Container(
                         margin: const EdgeInsets.symmetric(vertical: 12),
@@ -129,30 +131,29 @@ class RideResultScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF1A1A2E),
+                        color: AppColors.darkNavy,
                       ),
                     ),
                     const SizedBox(height: 16),
 
-                    // Information card for the available ride type (Bike).
+                    // Ride type card: Bike with hardcoded fare and ETA.
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color:
-                            const Color(0xFF5C2D91).withValues(alpha: 0.06),
+                        color: AppColors.primary.withValues(alpha: 0.06),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
-                          color: const Color(0xFF5C2D91)
-                              .withValues(alpha: 0.2),
+                          color: AppColors.primary.withValues(alpha: 0.2),
                         ),
                       ),
                       child: Row(
                         children: [
+                          // Bike icon circle.
                           Container(
                             width: 56,
                             height: 56,
                             decoration: const BoxDecoration(
-                              color: Color(0xFF5C2D91),
+                              color: AppColors.primary,
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(
@@ -162,6 +163,8 @@ class RideResultScreen extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 16),
+
+                          // Vehicle type and description.
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -171,7 +174,7 @@ class RideResultScreen extends StatelessWidget {
                                   style: TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.w700,
-                                    color: Color(0xFF1A1A2E),
+                                    color: AppColors.darkNavy,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
@@ -185,6 +188,8 @@ class RideResultScreen extends StatelessWidget {
                               ],
                             ),
                           ),
+
+                          // Fare and ETA on the right.
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
@@ -193,7 +198,7 @@ class RideResultScreen extends StatelessWidget {
                                 style: TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.w800,
-                                  color: Color(0xFF5C2D91),
+                                  color: AppColors.primary,
                                 ),
                               ),
                               Text(
@@ -211,7 +216,7 @@ class RideResultScreen extends StatelessWidget {
 
                     const SizedBox(height: 16),
 
-                    // Summary of the selected route paths.
+                    // Route summary: pickup above, drop below, connected by a line.
                     Row(
                       children: [
                         Column(
@@ -219,9 +224,10 @@ class RideResultScreen extends StatelessWidget {
                             const Icon(Icons.circle,
                                 color: Colors.green, size: 12),
                             Container(
-                                width: 2,
-                                height: 28,
-                                color: Colors.grey[300]),
+                              width: 2,
+                              height: 28,
+                              color: Colors.grey[300],
+                            ),
                             const Icon(Icons.location_on,
                                 color: Colors.red, size: 16),
                           ],
@@ -256,14 +262,14 @@ class RideResultScreen extends StatelessWidget {
 
                     const SizedBox(height: 24),
 
-                    // Primary confirmation button — creates the ride and
-                    // navigates to the live bidding screen.
+                    // Confirm Ride button — creates the ride and enters the bidding flow.
                     SizedBox(
                       width: double.infinity,
                       height: 54,
                       child: ElevatedButton(
                         onPressed: () {
                           final rideProvider = context.read<RideProvider>();
+                          // Kick off the bidding lifecycle on the backend.
                           context.read<BiddingProvider>().createRide(
                                 rideProvider.pickupLatLng!,
                                 rideProvider.dropLatLng!,
@@ -274,7 +280,7 @@ class RideResultScreen extends StatelessWidget {
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF5C2D91),
+                          backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),

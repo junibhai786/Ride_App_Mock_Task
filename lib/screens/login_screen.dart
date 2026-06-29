@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:ride_app_mock/core/constants/app_colors.dart';
 import 'package:ride_app_mock/providers/auth_provider.dart';
 import 'package:ride_app_mock/screens/otp_screen.dart';
 
-/// [LoginScreen] allows users to input their phone number to start the authentication process.
+/// [LoginScreen] collects the user's phone number and initiates OTP sending
+/// via [AuthProvider] before navigating to [OtpScreen].
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -13,9 +15,9 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  // Controller for the phone number input field.
   final TextEditingController _phoneController = TextEditingController();
-  // Form key for validation.
+
+  /// Form key used to trigger field-level validation before submitting.
   final _formKey = GlobalKey<FormState>();
 
   @override
@@ -24,16 +26,18 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  /// Initiates the OTP sending process using the [AuthProvider].
-  /// Navigates to the [OtpScreen] if the request is successful.
+  /// Validates the form, calls [AuthProvider.sendOtp], and navigates on success.
   Future<void> _onSendOtp(AuthProvider auth) async {
     if (!_formKey.currentState!.validate()) return;
-    FocusScope.of(context).unfocus(); // Dismiss the keyboard.
+
+    // Dismiss keyboard before the async operation to improve perceived responsiveness.
+    FocusScope.of(context).unfocus();
 
     await auth.sendOtp(_phoneController.text.trim());
 
     if (!mounted) return;
-    // Check if the authentication state updated to otpSent.
+
+    // Navigate only if the provider successfully transitioned to otpSent.
     if (auth.status == AuthStatus.otpSent) {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const OtpScreen()),
@@ -47,10 +51,10 @@ class _LoginScreenState extends State<LoginScreen> {
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        // Brand background gradient.
+        // Brand gradient background.
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF5C2D91), Color(0xFF9C27B0)],
+            colors: [AppColors.primary, AppColors.primaryLight],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -63,7 +67,7 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 const SizedBox(height: 48),
 
-                // Centered App Branding (Logo + Name).
+                // Centered branding: icon + app name.
                 Center(
                   child: Column(
                     children: [
@@ -96,7 +100,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 48),
 
-                // White Card containing the Login Form.
+                // White card containing the phone number form.
                 Container(
                   decoration: BoxDecoration(
                     color: Colors.white,
@@ -120,21 +124,18 @@ class _LoginScreenState extends State<LoginScreen> {
                           style: TextStyle(
                             fontSize: 26,
                             fontWeight: FontWeight.w700,
-                            color: Color(0xFF1A1A2E),
+                            color: AppColors.darkNavy,
                             height: 1.3,
                           ),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           "We'll send a one-time password to verify your number.",
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey[600],
-                          ),
+                          style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                         ),
                         const SizedBox(height: 32),
 
-                        // Input field for the phone number with country prefix for Pakistan (+92).
+                        // Phone number input — digits only, 11 characters max (Pakistani format).
                         TextFormField(
                           controller: _phoneController,
                           keyboardType: TextInputType.phone,
@@ -148,16 +149,17 @@ class _LoginScreenState extends State<LoginScreen> {
                             letterSpacing: 2,
                           ),
                           decoration: InputDecoration(
-                            counterText: '',
+                            counterText: '', // Hide the character counter.
                             labelText: 'Phone Number',
                             hintText: '03XXXXXXXXX',
+                            // Pakistan country code prefix shown inside the field.
                             prefixIcon: Container(
                               margin: const EdgeInsets.symmetric(
                                   horizontal: 12, vertical: 8),
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 10, vertical: 6),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF5C2D91).withValues(alpha: 0.08),
+                                color: AppColors.primary.withValues(alpha: 0.08),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: const Text(
@@ -165,26 +167,29 @@ class _LoginScreenState extends State<LoginScreen> {
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
-                                  color: Color(0xFF5C2D91),
+                                  color: AppColors.primary,
                                 ),
                               ),
                             ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(color: Colors.grey[300]!),
+                              borderSide:
+                                  BorderSide(color: Colors.grey[300]!),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(color: Colors.grey[300]!),
+                              borderSide:
+                                  BorderSide(color: Colors.grey[300]!),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
                               borderSide: const BorderSide(
-                                  color: Color(0xFF5C2D91), width: 2),
+                                  color: AppColors.primary, width: 2),
                             ),
                             errorBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
-                              borderSide: const BorderSide(color: Colors.red),
+                              borderSide:
+                                  const BorderSide(color: Colors.red),
                             ),
                             filled: true,
                             fillColor: Colors.grey[50],
@@ -202,19 +207,22 @@ class _LoginScreenState extends State<LoginScreen> {
 
                         const SizedBox(height: 28),
 
-                        // Action button to trigger OTP sending.
+                        // Consumer rebuilds only the button area when auth state changes.
                         Consumer<AuthProvider>(
                           builder: (context, auth, _) {
-                            final isLoading = auth.status == AuthStatus.loading;
+                            final isLoading =
+                                auth.status == AuthStatus.loading;
+
                             return Column(
                               children: [
-                                // Conditional error message display if authentication fails.
+                                // Show error message if the OTP request failed.
                                 if (auth.status == AuthStatus.error &&
-                                    auth.errorMessage != null)
+                                    auth.exception != null)
                                   Padding(
-                                    padding: const EdgeInsets.only(bottom: 12),
+                                    padding:
+                                        const EdgeInsets.only(bottom: 12),
                                     child: Text(
-                                      auth.errorMessage!,
+                                      auth.exception!.message,
                                       style: const TextStyle(
                                           color: Colors.red, fontSize: 13),
                                       textAlign: TextAlign.center,
@@ -224,14 +232,19 @@ class _LoginScreenState extends State<LoginScreen> {
                                   width: double.infinity,
                                   height: 54,
                                   child: ElevatedButton(
-                                    onPressed: isLoading ? null : () => _onSendOtp(auth),
+                                    // Disable button while loading to prevent duplicate requests.
+                                    onPressed: isLoading
+                                        ? null
+                                        : () => _onSendOtp(auth),
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF5C2D91),
+                                      backgroundColor: AppColors.primary,
                                       foregroundColor: Colors.white,
                                       disabledBackgroundColor:
-                                          const Color(0xFF5C2D91).withValues(alpha: 0.6),
+                                          AppColors.primary.withValues(
+                                              alpha: 0.6),
                                       shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(14),
+                                        borderRadius:
+                                            BorderRadius.circular(14),
                                       ),
                                       elevation: 0,
                                     ),
@@ -261,7 +274,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                         const SizedBox(height: 20),
 
-                        // Legal and Policy notice footer.
+                        // Legal notice at the bottom of the form.
                         Center(
                           child: Text(
                             'By continuing, you agree to our Terms of Service\nand Privacy Policy.',

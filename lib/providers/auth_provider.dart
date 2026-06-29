@@ -1,150 +1,125 @@
-import 'dart:convert';
 import 'dart:math';
-import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 
-/// Defines the stages of the Authentication process.
+import 'package:flutter/material.dart';
+import 'package:ride_app_mock/core/errors/app_exception.dart';
+import 'package:ride_app_mock/core/network/api_client.dart';
+import 'package:ride_app_mock/core/constants/app_constants.dart';
+
 enum AuthStatus { idle, loading, otpSent, error }
 
-/// [AuthProvider] manages phone number registration, OTP generation,
-/// server-side verification, and local fallback handling.
 class AuthProvider with ChangeNotifier {
-  // Authentication states.
+  // ── State ──────────────────────────────────────────────────────────────────
+
   AuthStatus _status = AuthStatus.idle;
-  String? _errorMessage;
+  AppException? _exception;
   String _phoneNumber = '';
   String _receivedOtp = '';
-
   bool _isVerifying = false;
   bool _hasOtpError = false;
+  String? _localOtp;
 
-  // Getters for external access to state.
+  // ── Getters ────────────────────────────────────────────────────────────────
+
   AuthStatus get status => _status;
-  String? get errorMessage => _errorMessage;
+  AppException? get exception => _exception;
   String get phoneNumber => _phoneNumber;
   String get receivedOtp => _receivedOtp;
   bool get isVerifying => _isVerifying;
   bool get hasOtpError => _hasOtpError;
 
-  // API Backend base url for sending and verifying OTP codes.
-  static const String _baseUrl = 'http://10.176.23.172:3000';
+  // ── Helpers ────────────────────────────────────────────────────────────────
 
-  // ── Local fallback ──────────────────────────────────────────────────────────
-  // Stores locally generated OTP when backend is down/unreachable.
-  String? _localOtp;
-
-  /// Generates a random 4-digit number code as String.
   String _makeOtp() => (1000 + Random().nextInt(9000)).toString();
 
-  // ── Send OTP ────────────────────────────────────────────────────────────────
-  /// Requests backend server to send OTP code to the provided [phone] number.
-  /// Falls back to local generation if network or backend fails.
+  // ── Send OTP ───────────────────────────────────────────────────────────────
+
   Future<void> sendOtp(String phone) async {
     _status = AuthStatus.loading;
-    _errorMessage = null;
+    _exception = null;
     _phoneNumber = phone;
     notifyListeners();
 
-    if (_baseUrl.isNotEmpty) {
-      final url = '$_baseUrl/api/otp/send';
-      final body = jsonEncode({'phone': phone});
-      debugPrint('[OTP] POST $url');
-      debugPrint('[OTP] Request body: $body');
-      try {
-        final response = await http
-            .post(
-              Uri.parse(url),
-              headers: {'Content-Type': 'application/json'},
-              body: body,
-            )
-            .timeout(const Duration(seconds: 8));
+    try {
+      final data = await ApiClient.post(
+        '${AppConstants.serverUrl}/api/otp/send',
+        body: {'phone': phone},
+      );
 
-        debugPrint('[OTP] Response status: ${response.statusCode}');
-        debugPrint('[OTP] Response body: ${response.body}');
-
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-
-        if (response.statusCode == 200 && data['success'] == true) {
-          _receivedOtp = data['otp'] as String;
-          _localOtp = null; // Clear local fallback if backend is active.
-          _status = AuthStatus.otpSent;
-          notifyListeners();
-          return;
-        }
-        _errorMessage = data['message'] as String?;
-        debugPrint('[OTP] API error: $_errorMessage');
-      } catch (e) {
-        debugPrint('[OTP] Network error: $e — falling back to local OTP');
+      if (data['success'] == true) {
+        _receivedOtp = data['otp'] as String;
+        _localOtp = null;
+        _status = AuthStatus.otpSent;
+        notifyListeners();
+        return;
       }
-    }
 
-    // Local fallback when backend fails or is empty.
+      // Server returned 200 but success=false — treat as a server error.
+      throw ServerException(
+        data['message'] as String? ?? 'Failed to send OTP.',
+        statusCode: 200,
+      );
+    } on AppException catch (e) {
+      debugPrint('[Auth] sendOtp error: $e');
+      // Fall through to local OTP generation on network/timeout issues.
+      if (e is NetworkException || e is TimeoutException) {
+        _useFallbackOtp();
+        return;
+      }
+      _exception = e;
+      _status = AuthStatus.error;
+      notifyListeners();
+      return;
+    }
+  }
+
+  void _useFallbackOtp() async {
     await Future.delayed(const Duration(seconds: 2));
     _localOtp = _makeOtp();
     _receivedOtp = _localOtp!;
-    debugPrint('[OTP] Local fallback OTP: $_receivedOtp');
+    debugPrint('[Auth] Fallback OTP: $_receivedOtp');
     _status = AuthStatus.otpSent;
     notifyListeners();
   }
 
-  // ── Verify OTP ──────────────────────────────────────────────────────────────
-  /// Verifies the user entered [otp] either locally or against the backend.
-  /// Returns `true` on successful verification.
+  // ── Verify OTP ─────────────────────────────────────────────────────────────
+
   Future<bool> verifyOtp(String otp) async {
     _isVerifying = true;
     _hasOtpError = false;
     notifyListeners();
 
-    bool success = false;
+    bool success;
 
-    // If we have a local OTP, verify it locally
     if (_localOtp != null) {
       await Future.delayed(const Duration(milliseconds: 800));
       success = otp == _localOtp;
     } else {
-      // Otherwise verify against the API backend
-      final url = '$_baseUrl/api/otp/verify';
-      final body = jsonEncode({'phone': _phoneNumber, 'otp': otp});
-      debugPrint('[OTP] POST $url');
-      debugPrint('[OTP] Request body: $body');
       try {
-        final response = await http
-            .post(
-              Uri.parse(url),
-              headers: {'Content-Type': 'application/json'},
-              body: body,
-            )
-            .timeout(const Duration(seconds: 8));
-
-        debugPrint('[OTP] Response status: ${response.statusCode}');
-        debugPrint('[OTP] Response body: ${response.body}');
-
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-        success = response.statusCode == 200 && data['success'] == true;
-      } catch (e) {
-        debugPrint('[OTP] Verify error: $e');
+        final data = await ApiClient.post(
+          '${AppConstants.serverUrl}/api/otp/verify',
+          body: {'phone': _phoneNumber, 'otp': otp},
+        );
+        success = data['success'] == true;
+      } on AppException catch (e) {
+        debugPrint('[Auth] verifyOtp error: $e');
         success = false;
       }
     }
 
     _isVerifying = false;
-    if (!success) {
-      _hasOtpError = true;
-    }
+    if (!success) _hasOtpError = true;
     notifyListeners();
     return success;
   }
 
-  /// Clears any outstanding validation error flags.
   void clearOtpError() {
     _hasOtpError = false;
     notifyListeners();
   }
 
-  /// Resets authentication state parameters to initial state values.
   void reset() {
     _status = AuthStatus.idle;
-    _errorMessage = null;
+    _exception = null;
     _phoneNumber = '';
     _receivedOtp = '';
     _localOtp = null;

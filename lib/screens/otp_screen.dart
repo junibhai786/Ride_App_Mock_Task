@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:ride_app_mock/core/constants/app_colors.dart';
 import 'package:ride_app_mock/providers/auth_provider.dart';
 import 'package:ride_app_mock/screens/request_ride_screen.dart';
+import 'package:ride_app_mock/widgets/otp_box.dart';
 
-/// [OtpScreen] manages the input and verification of the 4-digit OTP code sent to the user's phone.
+/// [OtpScreen] handles 4-digit OTP input and verification.
+/// Each digit has its own box; focus shifts automatically on entry and backspace.
 class OtpScreen extends StatefulWidget {
   const OtpScreen({super.key});
 
@@ -13,34 +16,28 @@ class OtpScreen extends StatefulWidget {
 }
 
 class _OtpScreenState extends State<OtpScreen> {
-  // 4 separate controllers — one per OTP digit input box for precise control.
+  // One controller per digit box — needed for individual character management.
   final List<TextEditingController> _controllers =
       List.generate(4, (_) => TextEditingController());
-  // Focus nodes to automatically shift focus between digit boxes during typing.
-  final List<FocusNode> _focusNodes =
-      List.generate(4, (_) => FocusNode());
+
+  // One focus node per digit box — allows programmatic focus shifting.
+  final List<FocusNode> _focusNodes = List.generate(4, (_) => FocusNode());
 
   @override
   void dispose() {
-    // Cleanup to prevent memory leaks.
-    for (final c in _controllers) {
-      c.dispose();
-    }
-    for (final f in _focusNodes) {
-      f.dispose();
-    }
+    // Release all controllers and focus nodes to prevent memory leaks.
+    for (final c in _controllers) { c.dispose(); }
+    for (final f in _focusNodes) { f.dispose(); }
     super.dispose();
   }
 
-  /// Concatenates the text from all 4 controllers into a single OTP string.
+  /// Joins all four digit controllers into a single 4-character string.
   String get _otp => _controllers.map((c) => c.text).join();
 
-  /// Validates the entered OTP via [AuthProvider].
-  /// Navigates to [RequestRideScreen] on success.
+  /// Verifies the OTP via [AuthProvider] and navigates on success.
   Future<void> _verifyOtp() async {
     final auth = context.read<AuthProvider>();
 
-    // Basic length validation before calling the API.
     if (_otp.length < 4) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -53,17 +50,15 @@ class _OtpScreenState extends State<OtpScreen> {
     }
 
     final success = await auth.verifyOtp(_otp);
-
     if (!mounted) return;
 
     if (success) {
-      // Clear navigation stack and move to the main ride request dashboard.
+      // Clear the navigation stack so the user cannot go back to login.
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const RequestRideScreen()),
         (_) => false,
       );
     } else {
-      // Inline error feedback on incorrect OTP.
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Incorrect OTP. Please try again.'),
@@ -74,7 +69,7 @@ class _OtpScreenState extends State<OtpScreen> {
     }
   }
 
-  /// Triggers the OTP resend logic in [AuthProvider].
+  /// Resends the OTP by calling [AuthProvider.sendOtp] with the saved phone number.
   Future<void> _resendOtp() async {
     final auth = context.read<AuthProvider>();
     await auth.sendOtp(auth.phoneNumber);
@@ -82,25 +77,24 @@ class _OtpScreenState extends State<OtpScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('OTP resent successfully'),
-        backgroundColor: Color(0xFF5C2D91),
+        backgroundColor: AppColors.primary,
         behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
-  /// Handles focus management when a digit is entered.
+  /// Advances focus to the next box when a digit is entered,
+  /// and auto-submits when all 4 digits are filled.
   void _onDigitChanged(String value, int index) {
-    final auth = context.read<AuthProvider>();
-    auth.clearOtpError();
-    // Move focus to next box if current box is filled.
+    context.read<AuthProvider>().clearOtpError();
     if (value.isNotEmpty && index < 3) {
       _focusNodes[index + 1].requestFocus();
     }
-    // Automatically trigger verification when the 4th digit is entered.
+    // Auto-verify as soon as the last digit is entered.
     if (_otp.length == 4) _verifyOtp();
   }
 
-  /// Handles backspace key event to move focus to the previous box if empty.
+  /// Moves focus backward when the user presses backspace on an empty box.
   void _onKeyEvent(KeyEvent event, int index) {
     if (event is KeyDownEvent &&
         event.logicalKey == LogicalKeyboardKey.backspace &&
@@ -112,7 +106,6 @@ class _OtpScreenState extends State<OtpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Listen to AuthProvider for status changes (isVerifying, hasOtpError).
     final auth = context.watch<AuthProvider>();
     final phone = auth.phoneNumber;
     final receivedOtp = auth.receivedOtp;
@@ -125,7 +118,7 @@ class _OtpScreenState extends State<OtpScreen> {
         height: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF5C2D91), Color(0xFF9C27B0)],
+            colors: [AppColors.primary, AppColors.primaryLight],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -137,7 +130,7 @@ class _OtpScreenState extends State<OtpScreen> {
               children: [
                 const SizedBox(height: 24),
 
-                // Back Button for better UX.
+                // Back button — lets the user correct their phone number.
                 Align(
                   alignment: Alignment.centerLeft,
                   child: GestureDetector(
@@ -148,15 +141,18 @@ class _OtpScreenState extends State<OtpScreen> {
                         color: Colors.white.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.arrow_back_ios_new,
-                          color: Colors.white, size: 18),
+                      child: const Icon(
+                        Icons.arrow_back_ios_new,
+                        color: Colors.white,
+                        size: 18,
+                      ),
                     ),
                   ),
                 ),
 
                 const SizedBox(height: 40),
 
-                // Icon Branding.
+                // Lock icon branding.
                 Container(
                   width: 80,
                   height: 80,
@@ -164,13 +160,16 @@ class _OtpScreenState extends State<OtpScreen> {
                     color: Colors.white.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.lock_outline_rounded,
-                      size: 40, color: Colors.white),
+                  child: const Icon(
+                    Icons.lock_outline_rounded,
+                    size: 40,
+                    color: Colors.white,
+                  ),
                 ),
 
                 const SizedBox(height: 48),
 
-                // Main card containing the OTP input UI.
+                // White card containing OTP inputs and actions.
                 Container(
                   decoration: BoxDecoration(
                     color: Colors.white,
@@ -192,7 +191,7 @@ class _OtpScreenState extends State<OtpScreen> {
                         style: TextStyle(
                           fontSize: 26,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF1A1A2E),
+                          color: AppColors.darkNavy,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -206,7 +205,7 @@ class _OtpScreenState extends State<OtpScreen> {
                         ),
                       ),
 
-                      // OTP display banner for testing purposes (Simulated SMS).
+                      // Demo banner — shows the OTP for easy testing.
                       if (receivedOtp.isNotEmpty) ...[
                         const SizedBox(height: 16),
                         Container(
@@ -214,16 +213,20 @@ class _OtpScreenState extends State<OtpScreen> {
                           padding: const EdgeInsets.symmetric(
                               vertical: 12, horizontal: 16),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF5C2D91).withValues(alpha: 0.08),
+                            color: AppColors.primary.withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                                color: const Color(0xFF5C2D91).withValues(alpha: 0.3)),
+                              color: AppColors.primary.withValues(alpha: 0.3),
+                            ),
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.info_outline,
-                                  size: 16, color: Color(0xFF5C2D91)),
+                              const Icon(
+                                Icons.info_outline,
+                                size: 16,
+                                color: AppColors.primary,
+                              ),
                               const SizedBox(width: 8),
                               Text(
                                 'Your OTP is: ',
@@ -235,7 +238,7 @@ class _OtpScreenState extends State<OtpScreen> {
                                 style: const TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.w800,
-                                  color: Color(0xFF5C2D91),
+                                  color: AppColors.primary,
                                   letterSpacing: 4,
                                 ),
                               ),
@@ -246,11 +249,11 @@ class _OtpScreenState extends State<OtpScreen> {
 
                       const SizedBox(height: 32),
 
-                      // Row of 4 stylized digit input boxes.
+                      // 4 digit input boxes laid out in a row.
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: List.generate(4, (i) {
-                          return _OtpBox(
+                          return OtpBox(
                             controller: _controllers[i],
                             focusNode: _focusNodes[i],
                             hasError: hasOtpError,
@@ -260,7 +263,7 @@ class _OtpScreenState extends State<OtpScreen> {
                         }),
                       ),
 
-                      // Error feedback if verification fails or is incomplete.
+                      // Inline error message below the boxes.
                       if (hasOtpError)
                         Padding(
                           padding: const EdgeInsets.only(top: 12),
@@ -275,17 +278,17 @@ class _OtpScreenState extends State<OtpScreen> {
 
                       const SizedBox(height: 32),
 
-                      // Verify Action Button.
+                      // Verify button — disabled and shows spinner during verification.
                       SizedBox(
                         width: double.infinity,
                         height: 54,
                         child: ElevatedButton(
                           onPressed: isVerifying ? null : _verifyOtp,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF5C2D91),
+                            backgroundColor: AppColors.primary,
                             foregroundColor: Colors.white,
                             disabledBackgroundColor:
-                                const Color(0xFF5C2D91).withValues(alpha: 0.6),
+                                AppColors.primary.withValues(alpha: 0.6),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
                             ),
@@ -313,7 +316,7 @@ class _OtpScreenState extends State<OtpScreen> {
 
                       const SizedBox(height: 20),
 
-                      // Resend OTP trigger.
+                      // Resend link for when the OTP expires or is not received.
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -329,7 +332,7 @@ class _OtpScreenState extends State<OtpScreen> {
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
-                                color: Color(0xFF5C2D91),
+                                color: AppColors.primary,
                               ),
                             ),
                           ),
@@ -343,73 +346,6 @@ class _OtpScreenState extends State<OtpScreen> {
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// A single digit input box for the OTP with custom focus management.
-class _OtpBox extends StatelessWidget {
-  final TextEditingController controller;
-  final FocusNode focusNode;
-  final bool hasError;
-  final ValueChanged<String> onChanged;
-  final ValueChanged<KeyEvent> onKeyEvent;
-
-  const _OtpBox({
-    required this.controller,
-    required this.focusNode,
-    required this.hasError,
-    required this.onChanged,
-    required this.onKeyEvent,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    // KeyboardListener captures backspace even on empty fields to allow backward focus movement.
-    return KeyboardListener(
-      focusNode: FocusNode(),
-      onKeyEvent: onKeyEvent,
-      child: SizedBox(
-        width: 52,
-        height: 58,
-        child: TextFormField(
-          controller: controller,
-          focusNode: focusNode,
-          keyboardType: TextInputType.number,
-          textAlign: TextAlign.center,
-          maxLength: 1,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          style: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF1A1A2E),
-          ),
-          decoration: InputDecoration(
-            counterText: '',
-            contentPadding: EdgeInsets.zero,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(
-                color: hasError ? Colors.red : Colors.grey[300]!,
-              ),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(
-                color: hasError ? Colors.red : Colors.grey[300]!,
-              ),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(
-                  color: Color(0xFF5C2D91), width: 2),
-            ),
-            filled: true,
-            fillColor: Colors.grey[50],
-          ),
-          onChanged: onChanged,
         ),
       ),
     );

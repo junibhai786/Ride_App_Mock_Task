@@ -4,7 +4,11 @@
       "Bash(flutter pub *)",
       "Bash(mkdir -p /Users/aizaz/StudioProjects/ride_otp_api)",
       "Read(//Users/aizaz/StudioProjects/**)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(mkdir -p /Users/aizaz/StudioProjects/ride_app_mock/lib/core/constants /Users/aizaz/StudioProjects/ride_app_mock/lib/widgets)"
+    ],
+    "additionalDirectories": [
+      "/Users/aizaz/StudioProjects/ride_app_mock/lib/core"
     ]
   }
 }
