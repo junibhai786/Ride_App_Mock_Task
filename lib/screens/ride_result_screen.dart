@@ -1,25 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
+import 'package:ride_app_mock/providers/bidding_provider.dart';
 import 'package:ride_app_mock/providers/ride_provider.dart';
+import 'package:ride_app_mock/screens/bidding_screen.dart';
 
+/// [RideResultScreen] displays the finalized route on a map and provides
+/// ride options (like Bike) with fare and ETA details.
 class RideResultScreen extends StatelessWidget {
   const RideResultScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // Listen for ride/route data updates.
     final rideProvider = context.watch<RideProvider>();
     final pickupLatLng = rideProvider.pickupLatLng;
     final dropLatLng = rideProvider.dropLatLng;
     final pickupText = rideProvider.pickupText;
     final dropText = rideProvider.dropText;
 
+    // Show a loading indicator if the coordinates are not yet available.
     if (pickupLatLng == null || dropLatLng == null) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator(color: Color(0xFF5C2D91))),
       );
     }
 
+    // Marker configuration for origin (green) and destination (red).
     final markers = {
       Marker(
         markerId: const MarkerId('pickup'),
@@ -38,7 +45,7 @@ class RideResultScreen extends StatelessWidget {
     return Scaffold(
       body: Stack(
         children: [
-          // Full-screen map
+          // Background: Full-screen interactive map with route polylines.
           GoogleMap(
             onMapCreated: context.read<RideProvider>().setMapController,
             initialCameraPosition: CameraPosition(
@@ -51,7 +58,7 @@ class RideResultScreen extends StatelessWidget {
             zoomControlsEnabled: true,
           ),
 
-          // Back button
+          // Floating Back button for easy navigation.
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -75,13 +82,13 @@ class RideResultScreen extends StatelessWidget {
             ),
           ),
 
-          // Loading indicator over map while fetching route
+          // Modal overlay during route calculation.
           if (rideProvider.isLoadingRoute)
             const Center(
               child: CircularProgressIndicator(color: Color(0xFF5C2D91)),
             ),
 
-          // Bottom sheet
+          // Bottom sheet containing ride options, pricing, and confirmation button.
           DraggableScrollableSheet(
             initialChildSize: 0.35,
             minChildSize: 0.2,
@@ -104,7 +111,7 @@ class RideResultScreen extends StatelessWidget {
                   controller: scrollController,
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
                   children: [
-                    // Drag handle
+                    // Visual drag handle for the sheet.
                     Center(
                       child: Container(
                         margin: const EdgeInsets.symmetric(vertical: 12),
@@ -127,7 +134,7 @@ class RideResultScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
 
-                    // Driver card
+                    // Information card for the available ride type (Bike).
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -204,7 +211,7 @@ class RideResultScreen extends StatelessWidget {
 
                     const SizedBox(height: 16),
 
-                    // Route summary
+                    // Summary of the selected route paths.
                     Row(
                       children: [
                         Column(
@@ -249,18 +256,21 @@ class RideResultScreen extends StatelessWidget {
 
                     const SizedBox(height: 24),
 
+                    // Primary confirmation button — creates the ride and
+                    // navigates to the live bidding screen.
                     SizedBox(
                       width: double.infinity,
                       height: 54,
                       child: ElevatedButton(
                         onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                  'Ride confirmed! Driver is on the way.'),
-                              backgroundColor: Color(0xFF5C2D91),
-                              behavior: SnackBarBehavior.floating,
-                            ),
+                          final rideProvider = context.read<RideProvider>();
+                          context.read<BiddingProvider>().createRide(
+                                rideProvider.pickupLatLng!,
+                                rideProvider.dropLatLng!,
+                              );
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => const BiddingScreen()),
                           );
                         },
                         style: ElevatedButton.styleFrom(

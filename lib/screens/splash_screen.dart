@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:ride_app_mock/screens/login_screen.dart';
+import 'package:ride_app_mock/screens/role_select_screen.dart';
 
+/// [SplashScreen] provides an animated introduction to the app.
+/// It uses a fade and scale animation for the logo and navigates to the Login screen.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -18,30 +20,35 @@ class _SplashScreenState extends State<SplashScreen>
   void initState() {
     super.initState();
 
+    // Initialize the animation controller with a 1.2 second duration.
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     );
 
+    // Fade-in animation from transparent to opaque.
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeIn),
     );
 
+    // Elastic scale animation for a bouncy entrance effect.
     _scaleAnimation = Tween<double>(begin: 0.7, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.elasticOut),
     );
 
+    // Start the animation immediately.
     _controller.forward();
 
-    // Navigate to login after 3 seconds
+    // Schedule navigation to the Login screen after a 3-second delay.
     Future.delayed(const Duration(seconds: 3), _navigateToLogin);
   }
 
+  /// Handles the transition to the [RoleSelectScreen] with a smooth fade effect.
   void _navigateToLogin() {
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
-        pageBuilder: (context, animation, secondary) => const LoginScreen(),
+        pageBuilder: (context, animation, secondary) => const RoleSelectScreen(),
         transitionsBuilder: (context, animation, secondary, child) {
           return FadeTransition(opacity: animation, child: child);
         },
@@ -62,6 +69,7 @@ class _SplashScreenState extends State<SplashScreen>
       body: Container(
         width: double.infinity,
         height: double.infinity,
+        // Background gradient from purple to pink.
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             colors: [Color(0xFF5C2D91), Color(0xFF9C27B0)],
@@ -75,7 +83,7 @@ class _SplashScreenState extends State<SplashScreen>
             children: [
               const Spacer(),
 
-              // Animated logo + app name
+              // Centered Animated logo and application title.
               FadeTransition(
                 opacity: _fadeAnimation,
                 child: ScaleTransition(
@@ -121,7 +129,7 @@ class _SplashScreenState extends State<SplashScreen>
 
               const Spacer(),
 
-              // Loading indicator at the bottom
+              // Subtle loading indicator at the bottom to inform the user.
               FadeTransition(
                 opacity: _fadeAnimation,
                 child: Padding(

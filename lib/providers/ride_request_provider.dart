@@ -4,12 +4,17 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 
+/// Google Maps API Key used for Autocomplete and Place Details.
 const _apiKey = 'AIzaSyBiA_0nQ8UDLzi6uJ444825ZOoCi_-SHBc';
 
+/// [RideRequestProvider] manages the state of location selection for a ride.
+/// It handles text inputs, place suggestions via Google Maps API, and map markers.
 class RideRequestProvider with ChangeNotifier {
+  // Controllers for the pickup and drop-off text input fields.
   final TextEditingController pickupController = TextEditingController();
   final TextEditingController dropController = TextEditingController();
 
+  // Internal state variables for coordinates and UI behavior.
   LatLng? _pickupLatLng;
   LatLng? _dropLatLng;
   List<dynamic> _pickupSuggestions = [];
@@ -20,6 +25,7 @@ class RideRequestProvider with ChangeNotifier {
   GoogleMapController? _mapController;
   Timer? _debounce;
 
+  // Public Getters for state variables.
   LatLng? get pickupLatLng => _pickupLatLng;
   LatLng? get dropLatLng => _dropLatLng;
   List<dynamic> get pickupSuggestions => _pickupSuggestions;
@@ -28,13 +34,21 @@ class RideRequestProvider with ChangeNotifier {
   bool get showDropSuggestions => _showDropSuggestions;
   Set<Marker> get markers => _markers;
 
+  /// Sets the [GoogleMapController] once the map is initialized on the UI.
   void setMapController(GoogleMapController controller) {
     _mapController = controller;
   }
 
+  /// Triggered when the text in the pickup field changes.
+  /// Implements debouncing to limit API calls during typing.
   void onPickupChanged(String value) {
+    // Stop and discard the previous timer if it exists.
+    // This prevents the API call from firing if the user types another character within 400ms.
     _debounce?.cancel();
-    _pickupLatLng = null;
+
+    _pickupLatLng = null; // Reset coordinate if user edits text to ensure they select a fresh suggestion.
+
+    // Start a new 400ms countdown.
     _debounce = Timer(const Duration(milliseconds: 400), () async {
       final suggestions = await _fetchSuggestions(value);
       _pickupSuggestions = suggestions;
@@ -43,9 +57,15 @@ class RideRequestProvider with ChangeNotifier {
     });
   }
 
+  /// Triggered when the text in the drop-off field changes.
+  /// Implements debouncing to limit API calls during typing.
   void onDropChanged(String value) {
+    // Cancel the pending timer from the previous keystroke.
     _debounce?.cancel();
-    _dropLatLng = null;
+
+    _dropLatLng = null; // Reset coordinate if user edits text.
+
+    // Only execute the API call if the user stops typing for at least 400 milliseconds.
     _debounce = Timer(const Duration(milliseconds: 400), () async {
       final suggestions = await _fetchSuggestions(value);
       _dropSuggestions = suggestions;
@@ -54,6 +74,8 @@ class RideRequestProvider with ChangeNotifier {
     });
   }
 
+  /// Finalizes the pickup location choice from the suggestion list.
+  /// Fetches exact LatLng coordinates and updates the map marker.
   Future<void> selectPickup(dynamic prediction) async {
     final description = prediction['description'] as String;
     final placeId = prediction['place_id'] as String;
@@ -61,9 +83,11 @@ class RideRequestProvider with ChangeNotifier {
     _showPickupSuggestions = false;
     _pickupSuggestions = [];
     notifyListeners();
+
     final latLng = await _fetchLatLng(placeId);
     if (latLng != null) {
       _pickupLatLng = latLng;
+      // Update markers set by replacing the old 'pickup' marker if it exists.
       _markers = {
         ..._markers.where((m) => m.markerId.value != 'pickup'),
         Marker(
@@ -74,10 +98,13 @@ class RideRequestProvider with ChangeNotifier {
         ),
       };
       notifyListeners();
+      // Move camera to the selected location.
       _mapController?.animateCamera(CameraUpdate.newLatLngZoom(latLng, 14));
     }
   }
 
+  /// Finalizes the drop-off location choice from the suggestion list.
+  /// Fetches exact LatLng coordinates and updates the map marker.
   Future<void> selectDrop(dynamic prediction) async {
     final description = prediction['description'] as String;
     final placeId = prediction['place_id'] as String;
@@ -85,9 +112,11 @@ class RideRequestProvider with ChangeNotifier {
     _showDropSuggestions = false;
     _dropSuggestions = [];
     notifyListeners();
+
     final latLng = await _fetchLatLng(placeId);
     if (latLng != null) {
       _dropLatLng = latLng;
+      // Update markers set by replacing the old 'drop' marker if it exists.
       _markers = {
         ..._markers.where((m) => m.markerId.value != 'drop'),
         Marker(
@@ -98,10 +127,12 @@ class RideRequestProvider with ChangeNotifier {
         ),
       };
       notifyListeners();
+      // Move camera to the selected location.
       _mapController?.animateCamera(CameraUpdate.newLatLngZoom(latLng, 14));
     }
   }
 
+  /// Forces the pickup suggestion list to show if suggestions already exist.
   void showPickupSuggestionList() {
     if (_pickupSuggestions.isNotEmpty) {
       _showPickupSuggestions = true;
@@ -109,6 +140,7 @@ class RideRequestProvider with ChangeNotifier {
     }
   }
 
+  /// Forces the drop-off suggestion list to show if suggestions already exist.
   void showDropSuggestionList() {
     if (_dropSuggestions.isNotEmpty) {
       _showDropSuggestions = true;
@@ -116,6 +148,7 @@ class RideRequestProvider with ChangeNotifier {
     }
   }
 
+  /// Calls Google Places Autocomplete API to get suggestions for the provided [input].
   Future<List<dynamic>> _fetchSuggestions(String input) async {
     if (input.isEmpty) return [];
     try {
@@ -134,6 +167,7 @@ class RideRequestProvider with ChangeNotifier {
     return [];
   }
 
+  /// Calls Google Place Details API to fetch coordinates for a specific [placeId].
   Future<LatLng?> _fetchLatLng(String placeId) async {
     try {
       final uri = Uri.parse(
@@ -156,6 +190,7 @@ class RideRequestProvider with ChangeNotifier {
 
   @override
   void dispose() {
+    // Cleanup controllers and timers to avoid memory leaks.
     pickupController.dispose();
     dropController.dispose();
     _debounce?.cancel();

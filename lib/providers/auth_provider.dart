@@ -3,9 +3,13 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+/// Defines the stages of the Authentication process.
 enum AuthStatus { idle, loading, otpSent, error }
 
+/// [AuthProvider] manages phone number registration, OTP generation,
+/// server-side verification, and local fallback handling.
 class AuthProvider with ChangeNotifier {
+  // Authentication states.
   AuthStatus _status = AuthStatus.idle;
   String? _errorMessage;
   String _phoneNumber = '';
@@ -14,6 +18,7 @@ class AuthProvider with ChangeNotifier {
   bool _isVerifying = false;
   bool _hasOtpError = false;
 
+  // Getters for external access to state.
   AuthStatus get status => _status;
   String? get errorMessage => _errorMessage;
   String get phoneNumber => _phoneNumber;
@@ -21,17 +26,19 @@ class AuthProvider with ChangeNotifier {
   bool get isVerifying => _isVerifying;
   bool get hasOtpError => _hasOtpError;
 
-  static const String _baseUrl =
-      'https://welcoming-mindfulness-production-539a.up.railway.app';
+  // API Backend base url for sending and verifying OTP codes.
+  static const String _baseUrl = 'http://10.176.23.172:3000';
 
   // ── Local fallback ──────────────────────────────────────────────────────────
-  // Used when the API server is unreachable (local dev / before Heroku deploy).
+  // Stores locally generated OTP when backend is down/unreachable.
   String? _localOtp;
 
-  String _makeOtp() =>
-      (1000 + Random().nextInt(9000)).toString();
+  /// Generates a random 4-digit number code as String.
+  String _makeOtp() => (1000 + Random().nextInt(9000)).toString();
 
   // ── Send OTP ────────────────────────────────────────────────────────────────
+  /// Requests backend server to send OTP code to the provided [phone] number.
+  /// Falls back to local generation if network or backend fails.
   Future<void> sendOtp(String phone) async {
     _status = AuthStatus.loading;
     _errorMessage = null;
@@ -59,7 +66,7 @@ class AuthProvider with ChangeNotifier {
 
         if (response.statusCode == 200 && data['success'] == true) {
           _receivedOtp = data['otp'] as String;
-          _localOtp = null;
+          _localOtp = null; // Clear local fallback if backend is active.
           _status = AuthStatus.otpSent;
           notifyListeners();
           return;
@@ -71,7 +78,7 @@ class AuthProvider with ChangeNotifier {
       }
     }
 
-    // Local fallback
+    // Local fallback when backend fails or is empty.
     await Future.delayed(const Duration(seconds: 2));
     _localOtp = _makeOtp();
     _receivedOtp = _localOtp!;
@@ -81,6 +88,8 @@ class AuthProvider with ChangeNotifier {
   }
 
   // ── Verify OTP ──────────────────────────────────────────────────────────────
+  /// Verifies the user entered [otp] either locally or against the backend.
+  /// Returns `true` on successful verification.
   Future<bool> verifyOtp(String otp) async {
     _isVerifying = true;
     _hasOtpError = false;
@@ -93,7 +102,7 @@ class AuthProvider with ChangeNotifier {
       await Future.delayed(const Duration(milliseconds: 800));
       success = otp == _localOtp;
     } else {
-      // Otherwise verify against the API
+      // Otherwise verify against the API backend
       final url = '$_baseUrl/api/otp/verify';
       final body = jsonEncode({'phone': _phoneNumber, 'otp': otp});
       debugPrint('[OTP] POST $url');
@@ -126,11 +135,13 @@ class AuthProvider with ChangeNotifier {
     return success;
   }
 
+  /// Clears any outstanding validation error flags.
   void clearOtpError() {
     _hasOtpError = false;
     notifyListeners();
   }
 
+  /// Resets authentication state parameters to initial state values.
   void reset() {
     _status = AuthStatus.idle;
     _errorMessage = null;

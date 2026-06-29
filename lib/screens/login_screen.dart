@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:ride_app_mock/providers/auth_provider.dart';
 import 'package:ride_app_mock/screens/otp_screen.dart';
 
+/// [LoginScreen] allows users to input their phone number to start the authentication process.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -12,7 +13,9 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  // Controller for the phone number input field.
   final TextEditingController _phoneController = TextEditingController();
+  // Form key for validation.
   final _formKey = GlobalKey<FormState>();
 
   @override
@@ -21,13 +24,16 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  /// Initiates the OTP sending process using the [AuthProvider].
+  /// Navigates to the [OtpScreen] if the request is successful.
   Future<void> _onSendOtp(AuthProvider auth) async {
     if (!_formKey.currentState!.validate()) return;
-    FocusScope.of(context).unfocus();
+    FocusScope.of(context).unfocus(); // Dismiss the keyboard.
 
     await auth.sendOtp(_phoneController.text.trim());
 
     if (!mounted) return;
+    // Check if the authentication state updated to otpSent.
     if (auth.status == AuthStatus.otpSent) {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const OtpScreen()),
@@ -41,6 +47,7 @@ class _LoginScreenState extends State<LoginScreen> {
       body: Container(
         width: double.infinity,
         height: double.infinity,
+        // Brand background gradient.
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             colors: [Color(0xFF5C2D91), Color(0xFF9C27B0)],
@@ -56,7 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 const SizedBox(height: 48),
 
-                // Back / Logo row
+                // Centered App Branding (Logo + Name).
                 Center(
                   child: Column(
                     children: [
@@ -89,7 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 48),
 
-                // Card form
+                // White Card containing the Login Form.
                 Container(
                   decoration: BoxDecoration(
                     color: Colors.white,
@@ -127,7 +134,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 32),
 
-                        // Phone number field
+                        // Input field for the phone number with country prefix for Pakistan (+92).
                         TextFormField(
                           controller: _phoneController,
                           keyboardType: TextInputType.phone,
@@ -195,13 +202,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
                         const SizedBox(height: 28),
 
-                        // Send OTP Button
+                        // Action button to trigger OTP sending.
                         Consumer<AuthProvider>(
                           builder: (context, auth, _) {
                             final isLoading = auth.status == AuthStatus.loading;
                             return Column(
                               children: [
-                                // Error message from provider
+                                // Conditional error message display if authentication fails.
                                 if (auth.status == AuthStatus.error &&
                                     auth.errorMessage != null)
                                   Padding(
@@ -254,7 +261,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                         const SizedBox(height: 20),
 
-                        // Terms note
+                        // Legal and Policy notice footer.
                         Center(
                           child: Text(
                             'By continuing, you agree to our Terms of Service\nand Privacy Policy.',

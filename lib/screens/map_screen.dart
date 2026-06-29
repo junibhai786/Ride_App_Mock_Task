@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-/// Standalone Task 3 screen: opens Google Maps centred on Lahore
-/// with a marker placed at Liberty Chowk, Lahore.
+/// [MapScreen] is a standalone screen (Task 3) that displays a Google Map
+/// centered on Lahore with a specific marker at Liberty Chowk.
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
 
@@ -11,8 +11,10 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
+  // Hardcoded coordinates for the map center (Lahore).
   static const LatLng _lahore = LatLng(31.5204, 74.3587);
 
+  // Set of markers to be displayed on the map.
   late final Set<Marker> _markers = {
     Marker(
       markerId: const MarkerId('lahore'),
@@ -26,9 +28,10 @@ class _MapScreenState extends State<MapScreen> {
 
   GoogleMapController? _controller;
 
+  /// Callback when the Google Map is successfully created.
   void _onMapCreated(GoogleMapController controller) {
     _controller = controller;
-    // Open the info window automatically so the label is visible on launch
+    // Automatically open the info window to make the marker details visible immediately on launch.
     _controller!.showMarkerInfoWindow(const MarkerId('lahore'));
   }
 

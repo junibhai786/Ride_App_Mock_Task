@@ -6,15 +6,21 @@ import 'package:ride_app_mock/providers/ride_request_provider.dart';
 
 import 'ride_result_screen.dart';
 
+/// [RequestRideScreen] allows users to select pickup and drop-off locations
+/// via interactive autocomplete text fields and view the map before requesting a ride.
 class RequestRideScreen extends StatelessWidget {
   const RequestRideScreen({super.key});
 
+  // Default initial map center coordinates targeting Lahore, Pakistan.
   static const LatLng _lahore = LatLng(31.5204, 74.3587);
 
+  /// Validates inputs and prepares route details before navigating to the ride result screen.
   void _findRide(BuildContext context) {
+    // Access Providers without listening to changes since this is a click callback.
     final provider = context.read<RideRequestProvider>();
     final rideProvider = context.read<RideProvider>();
 
+    // Ensure both locations are selected by the user from suggestions.
     if (provider.pickupLatLng == null || provider.dropLatLng == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -26,6 +32,7 @@ class RequestRideScreen extends StatelessWidget {
       return;
     }
 
+    // Set the selected route information inside the RideProvider.
     rideProvider.setRoute(
       provider.pickupLatLng!,
       provider.dropLatLng!,
@@ -33,12 +40,14 @@ class RequestRideScreen extends StatelessWidget {
       provider.dropController.text,
     );
 
+    // Navigate to the screen showing available rides/drivers for the selected route.
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const RideResultScreen()),
     );
   }
 
+  /// Builds a customized floating suggestions list overlay container for place suggestions.
   Widget _buildSuggestionList(
       List<dynamic> suggestions, Function(dynamic) onTap) {
     return Container(
@@ -58,11 +67,13 @@ class RequestRideScreen extends StatelessWidget {
         padding: EdgeInsets.zero,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
+        // Limits the suggestion list size up to 5 items maximum.
         itemCount: suggestions.length > 5 ? 5 : suggestions.length,
         separatorBuilder: (context, index) =>
             Divider(height: 1, color: Colors.grey.shade200),
         itemBuilder: (context, index) {
           final prediction = suggestions[index];
+          // Safely extract main title and secondary text from Google Places API structured response.
           final mainText =
               prediction['structured_formatting']?['main_text'] as String? ??
                   prediction['description'] as String;
@@ -91,6 +102,7 @@ class RequestRideScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Watch for updates inside the RideRequestProvider to trigger rebuilds on location/suggestion state changes.
     final provider = context.watch<RideRequestProvider>();
 
     return Scaffold(
@@ -102,6 +114,7 @@ class RequestRideScreen extends StatelessWidget {
       body: SingleChildScrollView(
         child: Column(
           children: [
+            // Top portion displaying Google Maps with existing markers.
             SizedBox(
               height: 280,
               child: GoogleMap(
@@ -121,7 +134,7 @@ class RequestRideScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Improved Location Selection Card
+                  // Card UI containing Pickup and Drop Location input fields.
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -138,7 +151,7 @@ class RequestRideScreen extends StatelessWidget {
                     child: IntrinsicHeight(
                       child: Row(
                         children: [
-                          // Left side: Route visualizer
+                          // Left visual connector indicating route path from pickup to drop point.
                           Column(
                             children: [
                               const Icon(Icons.radio_button_checked,
@@ -154,11 +167,11 @@ class RequestRideScreen extends StatelessWidget {
                             ],
                           ),
                           const SizedBox(width: 12),
-                          // Right side: TextFields
+                          // Right side containing input forms for addressing locations.
                           Expanded(
                             child: Column(
                               children: [
-                                // Pickup Field
+                                // Input field for the pickup address.
                                 TextField(
                                   controller: provider.pickupController,
                                   decoration: const InputDecoration(
@@ -171,7 +184,7 @@ class RequestRideScreen extends StatelessWidget {
                                   onTap: provider.showPickupSuggestionList,
                                 ),
                                 Divider(height: 1, color: Colors.grey[200]),
-                                // Drop Field
+                                // Input field for the destination address.
                                 TextField(
                                   controller: provider.dropController,
                                   decoration: const InputDecoration(
@@ -191,7 +204,7 @@ class RequestRideScreen extends StatelessWidget {
                     ),
                   ),
 
-                  // Suggestions
+                  // Display suggestions dropdown container for the Pickup Field when requested.
                   if (provider.showPickupSuggestions &&
                       provider.pickupSuggestions.isNotEmpty)
                     Padding(
@@ -199,6 +212,7 @@ class RequestRideScreen extends StatelessWidget {
                       child: _buildSuggestionList(
                           provider.pickupSuggestions, provider.selectPickup),
                     ),
+                  // Display suggestions dropdown container for the Destination Field when requested.
                   if (provider.showDropSuggestions &&
                       provider.dropSuggestions.isNotEmpty)
                     Padding(
@@ -209,6 +223,7 @@ class RequestRideScreen extends StatelessWidget {
 
                   const SizedBox(height: 24),
 
+                  // Button to initiate the route generation and find available matching rides.
                   SizedBox(
                     height: 50,
                     child: ElevatedButton(

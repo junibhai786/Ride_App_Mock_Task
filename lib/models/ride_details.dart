@@ -1,3 +1,5 @@
+/// [RideDetails] is a data model representing the calculated ride information
+/// including vehicle type, price, and estimated time of arrival.
 class RideDetails {
   final String vehicleType;
   final String fare;
@@ -9,6 +11,7 @@ class RideDetails {
     required this.eta,
   });
 
+  /// Factory constructor to create a [RideDetails] instance from a JSON map.
   factory RideDetails.fromJson(Map<String, dynamic> json) {
     return RideDetails(
       vehicleType: json['vehicleType'] ?? 'Bike',
